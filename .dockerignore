@@ -1,0 +1,17 @@
+# Docker build context exclusions
+.git/
+.gitignore
+README.md
+DEPLOYMENT.md
+deployment/AZURE_DEPLOYMENT.md
+notebooks/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+.DS_Store
+*.log
