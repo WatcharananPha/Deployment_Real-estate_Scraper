@@ -2,13 +2,17 @@ import time
 import csv
 import re
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+import os
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 
-START_URL = "https://www.livinginsider.com/living_zone/45/all/all/1/%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88.html"
-OUTPUT_CSV = "data/livinginsider_listing_urls.csv"
-PAGE_TIMEOUT = 45
-MAX_PAGES = 200
+START_URL = (
+    os.environ.get("LIV_START")
+    or "https://www.livinginsider.com/living_zone/45/all/all/1/%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88.html"
+)
+OUTPUT_CSV_FILE = os.environ.get("LIV_OUTPUT") or "livinginsider_listing_urls.csv"
+PAGE_TIMEOUT = int(os.environ.get("LIV_PAGE_TIMEOUT", 45))
+MAX_PAGES = int(os.environ.get("LIV_MAX_PAGES", 200))
 
 
 def build_page_url(u, page):
@@ -57,8 +61,7 @@ def deep_scroll(driver, rounds=18, pause=0.7):
 
 
 def collect_links_js(driver, base):
-    hrefs = driver.execute_script(
-        """
+    js = """
 const out = [];
 const a1 = Array.from(document.querySelectorAll("a[href*='/livingdetail/'][href$='.html']"));
 const a2 = Array.from(document.querySelectorAll("a[href^='/livingdetail/'][href$='.html']"));
@@ -71,18 +74,22 @@ for (const a of all){
 }
 return Array.from(new Set(out));
 """
-    )
+    hrefs = driver.execute_script(js)
     fixed = []
     for h in hrefs:
-        fixed.append(base + h if h.startswith("/") else h)
+        if h.startswith("/"):
+            fixed.append(base + h)
+        else:
+            fixed.append(h)
     return list(dict.fromkeys(fixed))
 
 
-def main():
+def run():
     options = uc.ChromeOptions()
     options.add_argument("--disable-notifications")
     options.add_argument("--start-maximized")
     driver = uc.Chrome(options=options)
+
     base = f"{urlparse(START_URL).scheme}://{urlparse(START_URL).netloc}"
 
     page = 1
@@ -99,7 +106,8 @@ def main():
         if page > 1 and urls_now[0] == last_first:
             break
         last_first = urls_now[0]
-        all_urls.update(urls_now)
+        for u in urls_now:
+            all_urls.add(u)
 
         page += 1
         prev_last = urls_now[-1]
@@ -110,9 +118,10 @@ def main():
             wait_ready(driver, 3)
             deep_scroll(driver, rounds=6, pause=0.6)
             cur = collect_links_js(driver, base)
-            if cur and (cur[0] != last_first or cur[-1] != prev_last):
-                changed = True
-                break
+            if cur:
+                if cur[0] != last_first or cur[-1] != prev_last:
+                    changed = True
+                    break
             time.sleep(0.3)
         if not changed:
             break
@@ -120,13 +129,12 @@ def main():
     driver.quit()
 
     if all_urls:
-        with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+        with open(OUTPUT_CSV_FILE, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["url"])
+            w.writerow(["ListingURL"])
             for u in sorted(all_urls):
                 w.writerow([u])
-        print(f"Collected {len(all_urls)} URLs")
 
 
 if __name__ == "__main__":
-    main()
+    run()

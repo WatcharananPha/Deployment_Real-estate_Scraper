@@ -3,15 +3,18 @@ import csv
 import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+import os
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-START_URL = "https://www.ddproperty.com/%E0%B8%A3%E0%B8%A7%E0%B8%A1%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B2%E0%B8%A8%E0%B8%82%E0%B8%B2%E0%B8%A2?areaCode=&listingType=sale&regionCode=TH50&locale=th&slug=search&_freetextDisplay=%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88&isCommercial=false"
-OUTPUT_CSV = "data/ddproperty_listing_urls.csv"
-WEBDRIVER_WAIT_TIMEOUT = 20
-MAX_PAGES = 200
+START_URL = (
+    os.environ.get("DDP_START_URL") or "https://www.ddproperty.com/%E0%B8%A3%E0%B8% ..."
+)
+OUTPUT_CSV_FILE = os.environ.get("DDP_OUTPUT") or "ddproperty_listing_urls.csv"
+WEBDRIVER_WAIT_TIMEOUT = int(os.environ.get("DDP_WAIT", 20))
+MAX_PAGES = int(os.environ.get("DDP_MAX_PAGES", 200))
 
 MONTH_ABBR = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
 DATE_REGEX = re.compile(rf"\b{MONTH_ABBR}\s+\d{{1,2}},\s+\d{{4}}\b", re.I)
@@ -53,8 +56,8 @@ def within_30_days(text):
     return False
 
 
-def main():
-    print("Init Chrome Driver...")
+def run():
+    print("Initializing Chrome Driver...")
     options = uc.ChromeOptions()
     options.add_argument("--disable-notifications")
     options.add_argument("--start-maximized")
@@ -62,7 +65,6 @@ def main():
     wait = WebDriverWait(driver, WEBDRIVER_WAIT_TIMEOUT)
 
     first_url = build_page_url(START_URL, 1)
-    print(f"Navigate to: {first_url}")
     driver.get(first_url)
 
     btns = driver.find_elements(By.XPATH, "//button[normalize-space(text())='ยอมรับ']")
@@ -75,7 +77,6 @@ def main():
     last_first_href = ""
 
     while page_num <= MAX_PAGES:
-        print(f"Scraping page {page_num}")
         listing_sel = "a.listing-card-link, a.card-footer"
         wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, listing_sel)))
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -84,10 +85,8 @@ def main():
         cards = driver.find_elements(By.CSS_SELECTOR, listing_sel)
         hrefs_now = [e.get_attribute("href") for e in cards if e.get_attribute("href")]
         if not hrefs_now:
-            print("No URLs found, stopping")
             break
         if page_num > 1 and hrefs_now[0] == last_first_href:
-            print("Listing unchanged, stopping")
             break
         last_first_href = hrefs_now[0]
 
@@ -108,7 +107,7 @@ def main():
                         "./ancestor::div[contains(@class,'details-group-root') or contains(@class,'listing-card') or contains(@class,'content')][1]",
                     )
                 except:
-                    pass
+                    anc = None
                 if anc:
                     rec_nodes = anc.find_elements(
                         By.XPATH,
@@ -119,7 +118,6 @@ def main():
                 hrefs_filtered.append(h)
 
         new_urls = set(hrefs_filtered) - all_listing_urls
-        print(f"Found {len(new_urls)} new URLs on page")
         all_listing_urls.update(hrefs_filtered)
 
         next_num = page_num + 1
@@ -136,12 +134,14 @@ def main():
                 if els:
                     h = els[0].get_attribute("href")
                     hh = els[-1].get_attribute("href")
-                    if (h and h != last_first_href) or (hh and hh != prev_last):
+                    if h and h != last_first_href:
+                        changed = True
+                        break
+                    if hh and hh != prev_last:
                         changed = True
                         break
             time.sleep(0.3)
         if not changed:
-            print("Next page unchanged, stopping")
             break
 
         page_num = next_num
@@ -149,14 +149,12 @@ def main():
     driver.quit()
 
     if all_listing_urls:
-        print(f"Total URLs: {len(all_listing_urls)}")
-        with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+        with open(OUTPUT_CSV_FILE, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["url"])
+            w.writerow(["ListingURL"])
             for url in sorted(all_listing_urls):
                 w.writerow([url])
-        print("Process complete")
 
 
 if __name__ == "__main__":
-    main()
+    run()
