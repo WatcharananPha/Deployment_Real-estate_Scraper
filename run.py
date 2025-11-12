@@ -15,15 +15,6 @@ PLATFORMS = {
     "marketplace_urls": "src/marketplace/urls.py",
     "marketplace_details": "src/marketplace/details.py",
 }
-
-
-def load_module(script_path):
-    spec = importlib.util.spec_from_file_location("module", script_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def run_scraper(task):
     if task not in PLATFORMS:
         print(f"Unknown task: {task}")
@@ -36,7 +27,9 @@ def run_scraper(task):
         sys.exit(1)
 
     print(f"\n==> Running {task}...")
-    module = load_module(str(script))
+    spec = importlib.util.spec_from_file_location("module", str(script))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     module.main()
     print(f"✓ {task} completed")
 

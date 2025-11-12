@@ -20,7 +20,16 @@ az provider register --namespace Microsoft.App
 az provider register --namespace Microsoft.OperationalInsights
 az extension add --name containerapp --yes
 az containerapp env create --name "$AZ_CONTAINERAPP_ENV" --resource-group "$AZ_RESOURCE_GROUP" --location "$AZ_REGION"
-az containerapp up --name "$AZ_CONTAINERAPP_NAME" --resource-group "$AZ_RESOURCE_GROUP" --environment "$AZ_CONTAINERAPP_ENV" --image "$LOGIN_SERVER/$AZ_IMAGE_NAME" --target-port 8888 --ingress external --registry-server "$LOGIN_SERVER" --registry-username "$REGISTRY_USERNAME" --registry-password "$REGISTRY_PASSWORD"
+az containerapp create \
+  --name "$AZ_CONTAINERAPP_NAME" \
+  --resource-group "$AZ_RESOURCE_GROUP" \
+  --environment "$AZ_CONTAINERAPP_ENV" \
+  --image "$LOGIN_SERVER/$AZ_IMAGE_NAME" \
+  --target-port 8888 \
+  --ingress external \
+  --registry-server "$LOGIN_SERVER" \
+  --registry-username "$REGISTRY_USERNAME" \
+  --registry-password "$REGISTRY_PASSWORD"
 az containerapp secret set --name "$AZ_CONTAINERAPP_NAME" --resource-group "$AZ_RESOURCE_GROUP" --secrets FACEBOOK_EMAIL="$SCRAPER_FACEBOOK_EMAIL" FACEBOOK_PASSWORD="$SCRAPER_FACEBOOK_PASSWORD"
 az containerapp update --name "$AZ_CONTAINERAPP_NAME" --resource-group "$AZ_RESOURCE_GROUP" --set-env-vars FACEBOOK_EMAIL=secretref:FACEBOOK_EMAIL FACEBOOK_PASSWORD=secretref:FACEBOOK_PASSWORD
 az containerapp restart --name "$AZ_CONTAINERAPP_NAME" --resource-group "$AZ_RESOURCE_GROUP"
