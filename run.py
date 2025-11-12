@@ -36,13 +36,9 @@ def run_scraper(task):
         sys.exit(1)
 
     print(f"\n==> Running {task}...")
-    try:
-        module = load_module(str(script))
-        module.main()
-        print(f"✓ {task} completed")
-    except Exception as e:
-        print(f"✗ {task} failed: {e}")
-        sys.exit(1)
+    module = load_module(str(script))
+    module.main()
+    print(f"✓ {task} completed")
 
 
 def main():
